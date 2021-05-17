@@ -100,12 +100,14 @@ class Coin:
     BLACKLIST_URL = None
     ESTIMATEFEE_MODES = (None, 'CONSERVATIVE', 'ECONOMICAL')
 
-    TX_COUNT: int
-    TX_COUNT_HEIGHT: int
-    TX_PER_BLOCK: int
     RPC_PORT: int
     NAME: str
     NET: str
+
+    # only used for initial db sync ETAs:
+    TX_COUNT_HEIGHT: int  # at a given snapshot of the chain,
+    TX_COUNT: int         # there have been this many txs so far,
+    TX_PER_BLOCK: int     # and from that height onwards, we guess this many txs per block
 
     @classmethod
     def lookup_coin_class(cls, name, net):
@@ -534,6 +536,30 @@ class PrimeChainPowMixin:
         return deserializer.read_header(cls.BASIC_HEADER_SIZE)
 
 
+class Verge(Coin):
+    NAME = "Verge"
+    SHORTNAME = "XVG"
+    NET = "mainnet"
+    XPUB_VERBYTES = bytes.fromhex("022d2533")
+    XPRV_VERBYTES = bytes.fromhex("0221312b")
+    P2PKH_VERBYTE = bytes.fromhex("30")
+    P2SH_VERBYTES = [bytes.fromhex("33")]
+    WIF_BYTE = bytes.fromhex("9E")
+    GENESIS_HASH = ('00000fc63692467faeb20cdb3b53200d'
+                    'c601d75bdfa1001463304cc790d77278')
+    RPC_PORT = 20102
+    TX_COUNT = 500000
+    TX_COUNT_HEIGHT = 3082138
+    TX_PER_BLOCK = 1
+    DESERIALIZER = lib_tx.DeserializerVerge
+
+    @classmethod
+    def header_hash(cls, header):
+        '''Given a header return the hash.'''
+        import scrypt
+        return scrypt.hash(header, header, 1024, 1, 1, 32)
+
+
 class HOdlcoin(Coin):
     NAME = "HOdlcoin"
     SHORTNAME = "HODLC"
@@ -566,7 +592,7 @@ class BitcoinSV(BitcoinMixin, Coin):
 
 
 class BitcoinCash(BitcoinMixin, Coin):
-    NAME = "BitcoinCashABC"   # Some releases later remove the ABC suffix
+    NAME = "BitcoinCash"
     SHORTNAME = "BCH"
     TX_COUNT = 265479628
     TX_COUNT_HEIGHT = 556592
@@ -574,7 +600,10 @@ class BitcoinCash(BitcoinMixin, Coin):
     PEERS = [
         'bch.imaginary.cash s t',
         'electroncash.dk s t',
-        'wallet.satoshiscoffeehouse.com s t',
+        'electrum.imaginary.cash s t',
+        'bch.loping.net s t',
+        'electroncash.de s t',
+        'blackie.c3-soft.com s t',
     ]
     BLOCK_PROCESSOR = block_proc.LTORBlockProcessor
 
@@ -832,7 +861,7 @@ class BitcoinSVScalingTestnet(BitcoinSVTestnet):
 
 class BitcoinCashTestnet(BitcoinTestnetMixin, Coin):
     '''Bitcoin Testnet for Bitcoin Cash daemons.'''
-    NAME = "BitcoinCashABC"
+    NAME = "BitcoinCash"
     PEERS = [
         'bch0.kister.net t s',
         'testnet.imaginary.cash t50001 s50002',
@@ -903,6 +932,20 @@ class BitcoinRegtest(BitcoinTestnet):
 
 
 class BitcoinSegwitRegtest(BitcoinRegtest):
+    NAME = "BitcoinSegwit"  # support legacy name
+
+
+class BitcoinSignet(BitcoinTestnet):
+    NAME = "Bitcoin"
+    NET = "signet"
+    GENESIS_HASH = ('00000008819873e925422c1ff0f99f7c'
+                    'c9bbb232af63a077a480a3633bee1ef6')
+    PEERS = []
+    TX_COUNT = 1
+    TX_COUNT_HEIGHT = 1
+
+
+class BitcoinSegwitSignet(BitcoinSignet):
     NAME = "BitcoinSegwit"  # support legacy name
 
 
@@ -989,6 +1032,7 @@ class LitecoinTestnet(Litecoin):
     PEERS = [
         'electrum-ltc.bysh.me s t',
         'electrum.ltc.xurious.com s t',
+        'ipv6-only.electrum.random.re s t',
     ]
 
 
@@ -1002,7 +1046,7 @@ class LitecoinRegtest(LitecoinTestnet):
 
 
 class BitcoinCashRegtest(BitcoinTestnetMixin, Coin):
-    NAME = "BitcoinCashABC"   # Some releases later remove the ABC suffix
+    NAME = "BitcoinCash"
     NET = "regtest"
     PEERS = []
     GENESIS_HASH = ('0f9188f13cb7b2c71f2a335e3a4fc328'
@@ -1197,6 +1241,7 @@ class Dogecoin(AuxPowMixin, Coin):
     TX_COUNT_HEIGHT = 1604979
     TX_PER_BLOCK = 20
     REORG_LIMIT = 2000
+    DESERIALIZER = lib_tx.DeserializerAuxPowSegWit
 
 
 class DogecoinTestnet(Dogecoin):
@@ -1685,6 +1730,9 @@ class PeercoinTestnet(Peercoin):
     GENESIS_HASH = ('00000001f757bb737f6596503e17cd17'
                     'b0658ce630cc727c0cca81aec47c9f06')
     ESTIMATE_FEE = 0.001
+    PEERS = [
+        "testnet-electrum.peercoinexplorer.net s"
+    ]
 
 
 class Trezarcoin(Coin):
@@ -2732,20 +2780,25 @@ class Pivx(Coin):
     P2PKH_VERBYTE = bytes.fromhex("1e")
     P2SH_VERBYTE = bytes.fromhex("0d")
     WIF_BYTE = bytes.fromhex("d4")
+    DESERIALIZER = lib_tx.DeserializerPIVX
     TX_COUNT_HEIGHT = 569399
     TX_COUNT = 2157510
     TX_PER_BLOCK = 1
     STATIC_BLOCK_HEADERS = False
     RPC_PORT = 51470
-    ZEROCOIN_HEADER = 112
+    REORG_LIMIT = 100
+    EXPANDED_HEADER = 112
     ZEROCOIN_START_HEIGHT = 863787
+    ZEROCOIN_END_HEIGHT = 2153200
     ZEROCOIN_BLOCK_VERSION = 4
+    SAPLING_START_HEIGHT = 2700500
 
     @classmethod
     def static_header_len(cls, height):
         '''Given a header height return its length.'''
-        if height >= cls.ZEROCOIN_START_HEIGHT:
-            return cls.ZEROCOIN_HEADER
+        if (height >= cls.ZEROCOIN_START_HEIGHT and height < cls.ZEROCOIN_END_HEIGHT) \
+                or (height >= cls.SAPLING_START_HEIGHT):
+            return cls.EXPANDED_HEADER
         else:
             return cls.BASIC_HEADER_SIZE
 
@@ -2770,7 +2823,19 @@ class PivxTestnet(Pivx):
     WIF_BYTE = bytes.fromhex("EF")
     TX_PER_BLOCK = 4
     RPC_PORT = 51472
-    ZEROCOIN_START_HEIGHT = 201564
+    ZEROCOIN_START_HEIGHT = 201
+    ZEROCOIN_END_HEIGHT = 201
+    ZEROCOIN_BLOCK_VERSION = 4
+    SAPLING_START_HEIGHT = 201
+
+    @classmethod
+    def static_header_len(cls, height):
+        '''Given a header height return its length.'''
+        if (height >= cls.ZEROCOIN_START_HEIGHT and height < cls.ZEROCOIN_END_HEIGHT) or (
+                height >= cls.SAPLING_START_HEIGHT):
+            return cls.EXPANDED_HEADER
+        else:
+            return cls.BASIC_HEADER_SIZE
 
 
 class Bitg(Coin):
@@ -3453,6 +3518,38 @@ class Simplicity(Coin):
             return double_sha256(header)
 
 
+class ElectraProtocol(Coin):
+    NAME = 'ElectraProtocol'
+    SHORTNAME = 'XEP'
+    NET = 'mainnet'
+    XPUB_VERBYTES = bytes.fromhex('0488b21e')
+    XPRV_VERBYTES = bytes.fromhex('0488ade4')
+    P2PKH_VERBYTE = bytes.fromhex('37')
+    P2SH_VERBYTE = bytes.fromhex('89')
+    WIF_BYTE = bytes.fromhex('a2')
+    GENESIS_HASH = '000000954c02f260a6db02c712557adcb5a7a8a0a9acfd3d3c2b3a427376c56f'
+    RPC_PORT = 16816
+    TX_COUNT = 264299
+    TX_COUNT_HEIGHT = 130000
+    TX_PER_BLOCK = 5
+    REORG_LIMIT = 1080
+    DESERIALIZER = lib_tx.DeserializerSegWit
+    PEERS = [
+        'electrumx1.electraprotocol.eu s t',
+        'electrumx2.electraprotocol.eu s t',
+        'electrumx3.electraprotocol.eu s t',
+        'electrumx4.electraprotocol.eu s t',
+        'electrumx5.electraprotocol.eu s t',
+    ]
+
+    @classmethod
+    def genesis_block(cls, block):
+        super().genesis_block(block)
+
+        # XEP has spendable genesis outputs, so we return the full block here.
+        return block
+
+
 class Myce(Coin):
     NAME = "Myce"
     SHORTNAME = "YCE"
@@ -3520,7 +3617,7 @@ class Primecoin(PrimeChainPowMixin, Coin):
     GENESIS_HASH = ('963d17ba4dc753138078a2f56afb3af9'
                     '674e2546822badff26837db9a0152106')
     DAEMON = daemon.FakeEstimateFeeDaemon
-    ESTIMATE_FEE = 1.024
+    ESTIMATE_FEE = 1.
     TX_COUNT = 7138730
     TX_COUNT_HEIGHT = 3639500
     TX_PER_BLOCK = 2
@@ -3610,6 +3707,7 @@ class Defcoin(Coin):
     TX_PER_BLOCK = 1
     RPC_PORT = 9386
     REORG_LIMIT = 5000
+    DESERIALIZER = lib_tx.DeserializerAuxPowSegWit
 
 
 class Auroracoin(Coin):
@@ -3884,3 +3982,40 @@ class Quebecoin(AuxPowMixin, Coin):
     TX_PER_BLOCK = 20
     REORG_LIMIT = 2000
     RPC_PORT = 10890
+
+
+class Beyondcoin(Coin):
+    NAME = "Beyondcoin"
+    SHORTNAME = "BYND"
+    NET = "mainnet"
+    XPUB_VERBYTES = bytes.fromhex("ff88b21e")
+    XPRV_VERBYTES = bytes.fromhex("ff88ade4")
+    P2PKH_VERBYTE = bytes.fromhex("19")
+    P2SH_VERBYTES = [bytes.fromhex("1a"), bytes.fromhex("05")]
+    WIF_BYTE = bytes.fromhex("b0")
+    GENESIS_HASH = ('0a9e3b5fce3aee6e04f06dfd6ad380a6'
+                    'c0f9d8420f53a4ca97845756ee5d56e7')
+    DESERIALIZER = lib_tx.DeserializerSegWit
+    TX_COUNT = 287000
+    TX_COUNT_HEIGHT = 133700
+    TX_PER_BLOCK = 2
+    RPC_PORT = 10332
+    REORG_LIMIT = 5000
+
+
+class Syscoin(AuxPowMixin, Coin):
+    NAME = "Syscoin"
+    SHORTNAME = "SYS"
+    NET = "mainnet"
+    P2PKH_VERBYTE = bytes.fromhex("3f")
+    P2SH_VERBYTES = (bytes.fromhex("05"),)
+    WIF_BYTE = bytes.fromhex("80")
+    GENESIS_HASH = ('0000022642db0346b6e01c2a397471f4'
+                    'f12e65d4f4251ec96c1f85367a61a7ab')
+    DESERIALIZER = lib_tx.DeserializerAuxPowSegWit
+    TX_COUNT = 911232
+    TX_COUNT_HEIGHT = 954572
+    TX_PER_BLOCK = 1
+    RPC_PORT = 8370
+    REORG_LIMIT = 2000
+    CHUNK_SIZE = 360

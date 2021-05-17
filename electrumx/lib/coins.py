@@ -2894,7 +2894,7 @@ class EXOS(Coin):
     TX_COUNT_HEIGHT = 10000
     TX_PER_BLOCK = 4
     DAEMON = daemon.PreLegacyRPCDaemon
-    DESERIALIZER = lib_tx.DeserializerTxTimeSegwit
+    DESERIALIZER = lib_tx.DeserializerTxTimeSegWit
 
     @classmethod
     def header_hash(cls, header):
